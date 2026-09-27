@@ -57,10 +57,6 @@ app.use(rateLimit({
 /* -------------------------------------------------------------------------- */
 /*                               Static Files                                 */
 /* -------------------------------------------------------------------------- */
-/*
- *  ملاحظة: على Vercel، الملفات الثابتة تُخدَم مباشرة من الـCDN عبر vercel.json
- *  (routes → public/**). هذا الجزء يعمل فقط عند التشغيل المحلي.
- */
 
 app.use(express.static(path.join(__dirname, 'public'), {
   extensions: ['html'],
@@ -104,7 +100,7 @@ async function findActiveSessionForUser(userId) {
   const sessions = await db.getSessions();
   for (const s of sessions) {
     if (s.userId !== userId) continue;
-    if (s.status !== 'active' && s.status !== 'unlocked') continue;
+    if (s.status !== 'active') continue;
 
     if (Date.now() >= s.startedAt + s.duration * 1000) {
       s.status = 'ended';
@@ -337,13 +333,10 @@ app.get('/api/admin/stats', adminAuthRequired, async (_req, res) => {
   try {
     const users = await db.getUsers();
     let active = 0;
-    let unlocked = 0;
 
     for (const u of users) {
       const s = await findActiveSessionForUser(u.id);
-      if (!s) continue;
-      if (s.status === 'active') active++;
-      if (s.status === 'unlocked') unlocked++;
+      if (s && s.status === 'active') active++;
     }
 
     const requests = await db.getRequests();
@@ -352,7 +345,7 @@ app.get('/api/admin/stats', adminAuthRequired, async (_req, res) => {
     res.json({
       users: users.length,
       activeSessions: active,
-      unlockedSessions: unlocked,
+      unlockedSessions: 0,
       pendingRequests: pending,
     });
   } catch (err) {
@@ -413,6 +406,11 @@ app.post('/api/admin/users', adminAuthRequired, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/users/:id/unlock
+ * Admin unlocks a student: terminates the active session immediately.
+ * The student returns to the idle screen on the next poll.
+ */
 app.post('/api/admin/users/:id/unlock', adminAuthRequired, async (req, res) => {
   try {
     const user = await db.getUser(req.params.id);
@@ -420,11 +418,11 @@ app.post('/api/admin/users/:id/unlock', adminAuthRequired, async (req, res) => {
 
     const session = await findActiveSessionForUser(user.id);
     if (session) {
-      session.status = 'unlocked';
+      session.status = 'ended';
       await db.setSession(session);
     }
 
-    user.status = 'unlocked';
+    user.status = 'free';
     await db.setUser(user);
 
     const requests = await db.getRequests();
@@ -443,6 +441,11 @@ app.post('/api/admin/users/:id/unlock', adminAuthRequired, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/users/:id/lock
+ * Admin locks a student: force them into a fresh active session, or leave
+ * them free if they have no session.
+ */
 app.post('/api/admin/users/:id/lock', adminAuthRequired, async (req, res) => {
   try {
     const user = await db.getUser(req.params.id);
@@ -450,8 +453,6 @@ app.post('/api/admin/users/:id/lock', adminAuthRequired, async (req, res) => {
 
     const session = await findActiveSessionForUser(user.id);
     if (session) {
-      session.status = 'active';
-      await db.setSession(session);
       user.status = 'active';
     } else {
       user.status = 'free';
@@ -505,7 +506,6 @@ app.get('*', (req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`[StudyLock] listening on http://localhost:${PORT}`);
-    console.log(`[StudyLock] storage: Firestore`);
   });
 }
 
