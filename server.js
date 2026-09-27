@@ -15,6 +15,8 @@ const db = require('./db');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 /* -------------------------------------------------------------------------- */
 /*                              Config & Guards                               */
 /* -------------------------------------------------------------------------- */
@@ -55,6 +57,10 @@ app.use(rateLimit({
 /* -------------------------------------------------------------------------- */
 /*                               Static Files                                 */
 /* -------------------------------------------------------------------------- */
+/*
+ *  ملاحظة: على Vercel، الملفات الثابتة تُخدَم مباشرة من الـCDN عبر vercel.json
+ *  (routes → public/**). هذا الجزء يعمل فقط عند التشغيل المحلي.
+ */
 
 app.use(express.static(path.join(__dirname, 'public'), {
   extensions: ['html'],
@@ -496,12 +502,10 @@ app.get('*', (req, res, next) => {
 /*                                   Server                                   */
 /* -------------------------------------------------------------------------- */
 
-/*  ملاحظة: نحذف seedDemoUsers تمامًا — لا نريد بيانات وهمية.                */
-
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`[StudyLock] listening on http://localhost:${PORT}`);
-    console.log(`[StudyLock] storage: Firestore (${process.env.FIREBASE_SERVICE_ACCOUNT ? 'configured' : 'missing'})`);
+    console.log(`[StudyLock] storage: Firestore`);
   });
 }
 
