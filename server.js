@@ -20,18 +20,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
 
 if (!JWT_SECRET || JWT_SECRET.length < 16) {
   console.error('[FATAL] JWT_SECRET missing or too short (min 16 chars).');
   process.exit(1);
 }
-if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
-  console.error('[FATAL] ADMIN_USERNAME / ADMIN_PASSWORD missing.');
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH) {
+  console.error('[FATAL] ADMIN_USERNAME / ADMIN_PASSWORD_HASH missing.');
   process.exit(1);
 }
-
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+if (!/^\$2[aby]\$\d{2}\$/.test(ADMIN_PASSWORD_HASH)) {
+  console.error('[FATAL] ADMIN_PASSWORD_HASH is not a valid bcrypt hash.');
+  process.exit(1);
+}
 
 /* -------------------------------------------------------------------------- */
 /*                              Security Middleware                           */
@@ -64,7 +66,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
  */
 
 const db = {
-  users: new Map(),          // userId  -> user
+  users: new Map(),          // userId    -> user
   sessions: new Map(),       // sessionId -> session
   unlockRequests: new Map(), // requestId -> request
 };
@@ -147,9 +149,6 @@ function isValidUserId(id) {
 /*                                Middleware                                  */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Admin auth (JWT). Only for /api/admin/* and /api/me.
- */
 function adminAuthRequired(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -167,12 +166,6 @@ function adminAuthRequired(req, res, next) {
   }
 }
 
-/**
- * Student identity via X-User-Id header.
- * No password, no JWT — this is a lightweight identifier for the student UI.
- * Real authorization for the student's own session is enforced server-side
- * by matching userId against session.userId.
- */
 function studentRequired(req, res, next) {
   const uid = req.headers['x-user-id'];
   if (!uid || !isValidUserId(uid)) {
@@ -192,7 +185,7 @@ function studentRequired(req, res, next) {
 
 /**
  * POST /api/users/register
- * Creates a student and returns their userId + user object.
+ * Creates a student identity and returns its userId.
  * Called by index.js on first load.
  */
 app.post('/api/users/register', (req, res) => {
@@ -213,7 +206,6 @@ app.post('/api/users/register', (req, res) => {
 
 /**
  * GET /api/users/me
- * Returns current student info from X-User-Id.
  */
 app.get('/api/users/me', studentRequired, (req, res) => {
   res.json({ user: publicUser(req.student) });
@@ -251,7 +243,6 @@ app.post('/api/auth/login', (req, res) => {
 
 /**
  * GET /api/me
- * Returns authenticated admin info.
  */
 app.get('/api/me', adminAuthRequired, (req, res) => {
   res.json({ user: { id: 'admin', role: 'admin' } });
@@ -263,7 +254,6 @@ app.get('/api/me', adminAuthRequired, (req, res) => {
 
 /**
  * POST /api/session/start
- * Starts a focus session for the current student.
  */
 app.post('/api/session/start', studentRequired, (req, res) => {
   const user = req.student;
@@ -293,7 +283,6 @@ app.post('/api/session/start', studentRequired, (req, res) => {
 
 /**
  * GET /api/session
- * Returns the current active session for the student, or null.
  */
 app.get('/api/session', studentRequired, (req, res) => {
   const session = findActiveSessionForUser(req.student.id);
@@ -302,7 +291,6 @@ app.get('/api/session', studentRequired, (req, res) => {
 
 /**
  * POST /api/session/request-unlock
- * Creates an unlock request for the student's active session.
  */
 app.post('/api/session/request-unlock', studentRequired, (req, res) => {
   const user = req.student;
@@ -340,7 +328,6 @@ app.post('/api/session/request-unlock', studentRequired, (req, res) => {
 
 /**
  * POST /api/session/end
- * Ends the student's active session voluntarily.
  */
 app.post('/api/session/end', studentRequired, (req, res) => {
   const user = req.student;
@@ -398,7 +385,6 @@ app.get('/api/admin/users', adminAuthRequired, (_req, res) => {
 
 /**
  * POST /api/admin/users
- * Creates a new student with a username.
  */
 app.post('/api/admin/users', adminAuthRequired, (req, res) => {
   const name = String(req.body?.name || '').trim().slice(0, 60);
@@ -430,7 +416,6 @@ app.post('/api/admin/users', adminAuthRequired, (req, res) => {
 
 /**
  * POST /api/admin/users/:id/unlock
- * Force-unlocks a user's active session.
  */
 app.post('/api/admin/users/:id/unlock', adminAuthRequired, (req, res) => {
   const user = db.users.get(req.params.id);
@@ -454,7 +439,6 @@ app.post('/api/admin/users/:id/unlock', adminAuthRequired, (req, res) => {
 
 /**
  * POST /api/admin/users/:id/lock
- * Re-locks a user's session (or ends it), and rejects pending requests.
  */
 app.post('/api/admin/users/:id/lock', adminAuthRequired, (req, res) => {
   const user = db.users.get(req.params.id);
