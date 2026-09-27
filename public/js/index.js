@@ -174,6 +174,7 @@ function renderIdle() {
   currentSession = null;
   saveSessionCache(null);
   setStatus(false, 'Focus Mode OFF');
+  els.unlockedNotice.classList.add('hidden');
   showView('idle');
   stopTicker();
 }
@@ -182,13 +183,8 @@ function renderActive(session) {
   currentSession = session;
   saveSessionCache(session);
 
-  if (session.status === 'unlocked') {
-    setStatus(true, 'Focus Mode ON · Unlocked');
-    els.unlockedNotice.classList.remove('hidden');
-  } else {
-    setStatus(true, 'Focus Mode ON');
-    els.unlockedNotice.classList.add('hidden');
-  }
+  setStatus(true, 'Focus Mode ON');
+  els.unlockedNotice.classList.add('hidden');
 
   showView('active');
   startTicker();
@@ -250,7 +246,17 @@ async function loadInitialState() {
     }
 
     renderIdle();
-  } catch {
+  } catch (err) {
+    if (err.status === 401) {
+      // The stored identity is no longer valid (e.g. Firestore was reset).
+      localStorage.removeItem(UID_KEY);
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      userId = null;
+      showView('name');
+      setTimeout(() => els.nameInput.focus(), 100);
+      return;
+    }
+
     const cached = loadSessionCache();
     if (cached && cached.endsAt > Date.now()) {
       renderActive(cached);
@@ -366,18 +372,13 @@ function startPolling() {
       const { session } = await api('/session');
 
       if (!session) {
-        renderDone(currentSession.duration * 1000);
+        // Admin ended the session, or it expired server-side.
+        showToast('تم إنهاء جلسة التركيز');
+        renderIdle();
         return;
       }
 
-      if (session.status !== currentSession.status) {
-        if (session.status === 'unlocked') {
-          showToast('تم فتح الوضع من المسؤول');
-        }
-        renderActive(session);
-      } else {
-        currentSession = session;
-      }
+      currentSession = session;
     } catch {
       // Silent: transient network errors should not disrupt the student
     }
