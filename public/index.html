@@ -25,7 +25,26 @@
     </header>
 
     <main class="main">
-      <section id="viewIdle" class="card">
+      <!-- View: name entry (first launch only) -->
+      <section id="viewName" class="card hidden">
+        <h1 class="title">أهلًا بك في StudyLock</h1>
+        <p class="subtitle">اكتب اسمك لتبدأ أول جلسة مذاكرة.</p>
+
+        <label class="field">
+          <span class="field-label">الاسم</span>
+          <input id="nameInput" class="input" type="text" maxlength="40"
+                 placeholder="مثال: أحمد" autocomplete="name" />
+        </label>
+
+        <button id="saveNameBtn" class="btn btn-primary" type="button">
+          حفظ ومتابعة
+        </button>
+
+        <div id="nameError" class="error hidden"></div>
+      </section>
+
+      <!-- View: idle -->
+      <section id="viewIdle" class="card hidden">
         <h1 class="title">جاهز للمذاكرة؟</h1>
         <p class="subtitle">
           وقت مذاكرة، بدون تشتيت، وحقّق هدفك.
@@ -47,6 +66,7 @@
         </button>
       </section>
 
+      <!-- View: active -->
       <section id="viewActive" class="card hidden">
         <div class="badge">وضع التركيز فعال</div>
         <div id="timer" class="timer">00:00:00</div>
@@ -61,6 +81,7 @@
         </button>
       </section>
 
+      <!-- View: done -->
       <section id="viewDone" class="card hidden">
         <h1 class="title">انتهت الجلسة</h1>
         <p class="subtitle">أحسنت، أكملت جلسة مذاكرة كاملة.</p>
