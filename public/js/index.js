@@ -139,7 +139,6 @@ async function ensureIdentity() {
     return;
   }
 
-  // Register a new student identity
   const res = await fetch(`${API}/users/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -232,7 +231,6 @@ async function loadInitialState() {
       return;
     }
 
-    // If no session on server, check cache for a session that just ended
     const cached = loadSessionCache();
     if (cached && cached.endsAt && cached.endsAt <= Date.now()) {
       renderDone(cached.duration * 1000);
@@ -240,8 +238,7 @@ async function loadInitialState() {
     }
 
     renderIdle();
-  } catch (err) {
-    // Offline fallback: trust cache if still active
+  } catch {
     const cached = loadSessionCache();
     if (cached && cached.endsAt > Date.now()) {
       renderActive(cached);
@@ -324,7 +321,6 @@ function startPolling() {
       const { session } = await api('/session');
 
       if (!session) {
-        // Admin ended the session or it expired server-side
         renderDone(currentSession.duration * 1000);
         return;
       }
@@ -335,7 +331,6 @@ function startPolling() {
         }
         renderActive(session);
       } else {
-        // Keep endsAt fresh
         currentSession = session;
       }
     } catch {
