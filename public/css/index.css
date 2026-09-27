@@ -344,6 +344,41 @@ html, body {
   max-width: calc(100vw - 32px);
 }
 
+/* --------------------------- Duration options --------------------------- */
+
+.duration-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.duration-btn {
+  padding: 14px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.duration-btn:hover {
+  border-color: var(--text-mute);
+}
+
+.duration-btn.active {
+  border-color: var(--accent);
+  background: rgba(79, 124, 255, 0.1);
+  color: #a9bcff;
+}
+
+.custom-duration {
+  margin-top: -4px;
+}
+
 /* ------------------------------- Utility -------------------------------- */
 
 .hidden { display: none !important; }
