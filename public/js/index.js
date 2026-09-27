@@ -25,8 +25,12 @@ const els = {
   saveNameBtn: $('#saveNameBtn'),
   nameError: $('#nameError'),
 
+  durationButtons: document.querySelectorAll('.duration-btn'),
+  customDurationBox: $('#customDurationBox'),
+  customMinutesInput: $('#customMinutesInput'),
+  durationError: $('#durationError'),
+
   startBtn: $('#startBtn'),
-  durationSelect: $('#durationSelect'),
 
   timer: $('#timer'),
   requestUnlockBtn: $('#requestUnlockBtn'),
@@ -48,6 +52,7 @@ let userId = null;
 let currentSession = null;
 let tickHandle = null;
 let pollHandle = null;
+let selectedDuration = 60; // دقائق — الافتراضي ساعة
 
 /* -------------------------------------------------------------------------- */
 /*                                   Utils                                    */
@@ -227,6 +232,29 @@ function tick() {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                              Duration picker                               */
+/* -------------------------------------------------------------------------- */
+
+function selectDuration(btn) {
+  els.durationButtons.forEach((b) => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const isCustom = btn.dataset.custom === 'true';
+
+  if (isCustom) {
+    selectedDuration = 'custom';
+    els.customDurationBox.classList.remove('hidden');
+    setTimeout(() => els.customMinutesInput.focus(), 50);
+  } else {
+    selectedDuration = Number(btn.dataset.minutes) || 60;
+    els.customDurationBox.classList.add('hidden');
+    els.customMinutesInput.value = '';
+  }
+
+  els.durationError.classList.add('hidden');
+}
+
+/* -------------------------------------------------------------------------- */
 /*                                Actions                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -248,7 +276,6 @@ async function loadInitialState() {
     renderIdle();
   } catch (err) {
     if (err.status === 401) {
-      // The stored identity is no longer valid (e.g. Firestore was reset).
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(SESSION_CACHE_KEY);
       userId = null;
@@ -267,10 +294,34 @@ async function loadInitialState() {
 }
 
 async function startSession() {
-  const durationSeconds = Number(els.durationSelect.value) * 60;
+  els.durationError.classList.add('hidden');
+  showError('');
+
+  let minutes = selectedDuration;
+
+  if (minutes === 'custom') {
+    const raw = Number(els.customMinutesInput.value);
+
+    if (!Number.isFinite(raw) || raw < 5) {
+      els.durationError.textContent = 'الحد الأدنى 5 دقائق.';
+      els.durationError.classList.remove('hidden');
+      els.customMinutesInput.focus();
+      return;
+    }
+
+    if (raw > 480) {
+      els.durationError.textContent = 'الحد الأقصى 8 ساعات.';
+      els.durationError.classList.remove('hidden');
+      els.customMinutesInput.focus();
+      return;
+    }
+
+    minutes = Math.floor(raw);
+  }
+
+  const durationSeconds = minutes * 60;
 
   els.startBtn.disabled = true;
-  showError('');
 
   try {
     const { session } = await api('/session/start', {
@@ -372,7 +423,6 @@ function startPolling() {
       const { session } = await api('/session');
 
       if (!session) {
-        // Admin ended the session, or it expired server-side.
         showToast('تم إنهاء جلسة التركيز');
         renderIdle();
         return;
@@ -380,7 +430,7 @@ function startPolling() {
 
       currentSession = session;
     } catch {
-      // Silent: transient network errors should not disrupt the student
+      // silent
     }
   }, 5000);
 }
@@ -393,6 +443,14 @@ function stopPolling() {
 /* -------------------------------------------------------------------------- */
 /*                                  Events                                    */
 /* -------------------------------------------------------------------------- */
+
+els.durationButtons.forEach((btn) => {
+  btn.addEventListener('click', () => selectDuration(btn));
+});
+
+els.customMinutesInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') els.startBtn.click();
+});
 
 els.saveNameBtn.addEventListener('click', submitName);
 
@@ -430,6 +488,10 @@ document.addEventListener('visibilitychange', () => {
 /* -------------------------------------------------------------------------- */
 
 (async function boot() {
+  // اختر "ساعة" افتراضيًا
+  const defaultBtn = document.querySelector('.duration-btn[data-minutes="60"]');
+  if (defaultBtn) selectDuration(defaultBtn);
+
   const hasIdentity = readStoredIdentity();
 
   if (!hasIdentity) {
