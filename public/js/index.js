@@ -1,6 +1,10 @@
 'use strict';
 
-/* StudyLock - Student UI */
+/* -------------------------------------------------------------------------- */
+/*  StudyLock — Student UI                                                    */
+/*  Identity: userId stored in localStorage (created on first launch with a   */
+/*  user-provided name). Sent as X-User-Id on every request.                  */
+/* -------------------------------------------------------------------------- */
 
 const API = '/api';
 const UID_KEY = 'sl_uid';
@@ -11,20 +15,31 @@ const $ = (sel) => document.querySelector(sel);
 const els = {
   statusPill: $('#statusPill'),
   statusText: $('#statusText'),
+
+  viewName: $('#viewName'),
   viewIdle: $('#viewIdle'),
   viewActive: $('#viewActive'),
   viewDone: $('#viewDone'),
+
+  nameInput: $('#nameInput'),
+  saveNameBtn: $('#saveNameBtn'),
+  nameError: $('#nameError'),
+
   startBtn: $('#startBtn'),
   durationSelect: $('#durationSelect'),
+
   timer: $('#timer'),
   requestUnlockBtn: $('#requestUnlockBtn'),
   unlockedNotice: $('#unlockedNotice'),
+
   doneDuration: $('#doneDuration'),
   newSessionBtn: $('#newSessionBtn'),
+
   modalBackdrop: $('#modalBackdrop'),
   reasonInput: $('#reasonInput'),
   cancelRequestBtn: $('#cancelRequestBtn'),
   sendRequestBtn: $('#sendRequestBtn'),
+
   errorBox: $('#errorBox'),
   toast: $('#toast'),
 };
@@ -33,6 +48,10 @@ let userId = null;
 let currentSession = null;
 let tickHandle = null;
 let pollHandle = null;
+
+/* -------------------------------------------------------------------------- */
+/*                                   Utils                                    */
+/* -------------------------------------------------------------------------- */
 
 function apiHeaders() {
   return {
@@ -44,11 +63,18 @@ function apiHeaders() {
 async function api(path, options = {}) {
   const res = await fetch(API + path, {
     ...options,
-    headers: { ...apiHeaders(), ...(options.headers || {}) },
+    headers: {
+      ...apiHeaders(),
+      ...(options.headers || {}),
+    },
   });
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw Object.assign(new Error(data.error || 'request_failed'), { status: res.status });
+    throw Object.assign(
+      new Error(data.error || 'request_failed'),
+      { status: res.status }
+    );
   }
   return data;
 }
@@ -86,6 +112,7 @@ function setStatus(on, label) {
 }
 
 function showView(name) {
+  els.viewName.classList.toggle('hidden', name !== 'name');
   els.viewIdle.classList.toggle('hidden', name !== 'idle');
   els.viewActive.classList.toggle('hidden', name !== 'active');
   els.viewDone.classList.toggle('hidden', name !== 'done');
@@ -107,25 +134,41 @@ function loadSessionCache() {
   }
 }
 
-async function ensureIdentity() {
+/* -------------------------------------------------------------------------- */
+/*                            Identity bootstrap                              */
+/* -------------------------------------------------------------------------- */
+
+function readStoredIdentity() {
   const stored = localStorage.getItem(UID_KEY);
   if (stored) {
     userId = stored;
-    return;
+    return true;
   }
+  return false;
+}
 
+async function registerWithName(name) {
   const res = await fetch(`${API}/users/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Student' }),
+    body: JSON.stringify({ name }),
   });
 
-  if (!res.ok) throw new Error('identity_failed');
+  if (!res.ok) {
+    throw Object.assign(
+      new Error('register_failed'),
+      { status: res.status }
+    );
+  }
 
   const data = await res.json();
   userId = data.userId;
   localStorage.setItem(UID_KEY, userId);
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                  Render                                    */
+/* -------------------------------------------------------------------------- */
 
 function renderIdle() {
   currentSession = null;
@@ -160,6 +203,10 @@ function renderDone(durationMs) {
   stopTicker();
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                  Ticker                                    */
+/* -------------------------------------------------------------------------- */
+
 function startTicker() {
   stopTicker();
   tick();
@@ -173,26 +220,35 @@ function stopTicker() {
 
 function tick() {
   if (!currentSession) return;
+
   const remaining = currentSession.endsAt - Date.now();
   if (remaining <= 0) {
     renderDone(currentSession.duration * 1000);
     return;
   }
+
   els.timer.textContent = fmtHMS(remaining);
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                Actions                                     */
+/* -------------------------------------------------------------------------- */
 
 async function loadInitialState() {
   try {
     const { session } = await api('/session');
+
     if (session) {
       renderActive(session);
       return;
     }
+
     const cached = loadSessionCache();
     if (cached && cached.endsAt && cached.endsAt <= Date.now()) {
       renderDone(cached.duration * 1000);
       return;
     }
+
     renderIdle();
   } catch {
     const cached = loadSessionCache();
@@ -206,6 +262,7 @@ async function loadInitialState() {
 
 async function startSession() {
   const durationSeconds = Number(els.durationSelect.value) * 60;
+
   els.startBtn.disabled = true;
   showError('');
 
@@ -214,10 +271,11 @@ async function startSession() {
       method: 'POST',
       body: JSON.stringify({ duration: durationSeconds }),
     });
+
     renderActive(session);
     showToast('بدأت جلسة التركيز');
   } catch {
-    showError('تعذّر بدء الجلسة. تحقق من الاتصال.');
+    showError('تعذّر بدء الجلسة. تحقق من الاتصال وأعد المحاولة.');
   } finally {
     els.startBtn.disabled = false;
   }
@@ -231,11 +289,13 @@ async function requestUnlock() {
   }
 
   els.sendRequestBtn.disabled = true;
+
   try {
     await api('/session/request-unlock', {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
+
     closeModal();
     els.reasonInput.value = '';
     showToast('تم إرسال الطلب. انتظر موافقة المسؤول.');
@@ -246,6 +306,43 @@ async function requestUnlock() {
   }
 }
 
+async function submitName() {
+  const name = els.nameInput.value.trim();
+  els.nameError.classList.add('hidden');
+
+  if (!name) {
+    els.nameError.textContent = 'الرجاء إدخال الاسم.';
+    els.nameError.classList.remove('hidden');
+    els.nameInput.focus();
+    return;
+  }
+
+  if (name.length < 2) {
+    els.nameError.textContent = 'الاسم قصير جدًا.';
+    els.nameError.classList.remove('hidden');
+    els.nameInput.focus();
+    return;
+  }
+
+  els.saveNameBtn.disabled = true;
+
+  try {
+    await registerWithName(name);
+    await loadInitialState();
+    startPolling();
+    showToast(`مرحبًا ${name}`);
+  } catch {
+    els.nameError.textContent = 'تعذّر حفظ الاسم. حاول مرة أخرى.';
+    els.nameError.classList.remove('hidden');
+  } finally {
+    els.saveNameBtn.disabled = false;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  Modal                                     */
+/* -------------------------------------------------------------------------- */
+
 function openModal() {
   els.modalBackdrop.classList.remove('hidden');
   setTimeout(() => els.reasonInput.focus(), 50);
@@ -255,16 +352,24 @@ function closeModal() {
   els.modalBackdrop.classList.add('hidden');
 }
 
+/* -------------------------------------------------------------------------- */
+/*                        Polling (server-driven state)                       */
+/* -------------------------------------------------------------------------- */
+
 function startPolling() {
   stopPolling();
+
   pollHandle = setInterval(async () => {
     if (!currentSession) return;
+
     try {
       const { session } = await api('/session');
+
       if (!session) {
         renderDone(currentSession.duration * 1000);
         return;
       }
+
       if (session.status !== currentSession.status) {
         if (session.status === 'unlocked') {
           showToast('تم فتح الوضع من المسؤول');
@@ -273,7 +378,9 @@ function startPolling() {
       } else {
         currentSession = session;
       }
-    } catch {}
+    } catch {
+      // Silent: transient network errors should not disrupt the student
+    }
   }, 5000);
 }
 
@@ -282,7 +389,18 @@ function stopPolling() {
   pollHandle = null;
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                  Events                                    */
+/* -------------------------------------------------------------------------- */
+
+els.saveNameBtn.addEventListener('click', submitName);
+
+els.nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitName();
+});
+
 els.startBtn.addEventListener('click', startSession);
+
 els.requestUnlockBtn.addEventListener('click', openModal);
 
 els.cancelRequestBtn.addEventListener('click', () => {
@@ -306,13 +424,20 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* -------------------------------------------------------------------------- */
+/*                                   Boot                                     */
+/* -------------------------------------------------------------------------- */
+
 (async function boot() {
-  try {
-    await ensureIdentity();
-  } catch {
-    showError('تعذّر تهيئة الجلسة. تحقق من الاتصال بالسيرفر.');
+  const hasIdentity = readStoredIdentity();
+
+  if (!hasIdentity) {
+    setStatus(false, 'Focus Mode OFF');
+    showView('name');
+    setTimeout(() => els.nameInput.focus(), 100);
     return;
   }
+
   await loadInitialState();
   startPolling();
 })();
