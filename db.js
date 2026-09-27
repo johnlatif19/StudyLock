@@ -1,106 +1,109 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+/* -------------------------------------------------------------------------- */
+/*  Firestore adapter                                                         */
+/*  Uses Firebase Admin SDK. Requires FIREBASE_SERVICE_ACCOUNT in env.        */
+/* -------------------------------------------------------------------------- */
 
-const DB_FILE = process.env.DB_FILE || path.join(__dirname, 'data', 'db.json');
+const admin = require('firebase-admin');
 
-const defaultData = {
-  users: {},
-  sessions: {},
-  unlockRequests: {},
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error('[FATAL] FIREBASE_SERVICE_ACCOUNT is missing.');
+  process.exit(1);
+}
+
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} catch {
+  console.error('[FATAL] FIREBASE_SERVICE_ACCOUNT is not valid JSON.');
+  process.exit(1);
+}
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+const fs = admin.firestore();
+fs.settings({ ignoreUndefinedProperties: true });
+
+const COL = {
+  users: fs.collection('users'),
+  sessions: fs.collection('sessions'),
+  unlockRequests: fs.collection('unlockRequests'),
 };
-
-let cache = null;
-
-function ensureDir() {
-  const dir = path.dirname(DB_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-function load() {
-  if (cache) return cache;
-
-  ensureDir();
-
-  if (!fs.existsSync(DB_FILE)) {
-    cache = JSON.parse(JSON.stringify(defaultData));
-    save();
-    return cache;
-  }
-
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    const parsed = JSON.parse(raw || '{}');
-    cache = {
-      users: parsed.users || {},
-      sessions: parsed.sessions || {},
-      unlockRequests: parsed.unlockRequests || {},
-    };
-  } catch {
-    cache = JSON.parse(JSON.stringify(defaultData));
-  }
-  return cache;
-}
-
-function save() {
-  ensureDir();
-  fs.writeFileSync(DB_FILE, JSON.stringify(cache, null, 2), 'utf8');
-}
 
 const db = {
   /* -------- users -------- */
-  getUsers() {
-    return Object.values(load().users);
+
+  async getUsers() {
+    const snap = await COL.users.get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   },
-  getUser(id) {
-    return load().users[id] || null;
+
+  async getUser(id) {
+    const doc = await COL.users.doc(id).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
-  setUser(user) {
-    load().users[user.id] = user;
-    save();
+
+  async setUser(user) {
+    const { id, ...data } = user;
+    await COL.users.doc(id).set(data, { merge: true });
   },
-  deleteUser(id) {
-    const data = load();
-    delete data.users[id];
-    save();
+
+  async deleteUser(id) {
+    await COL.users.doc(id).delete();
   },
-  findUserByUsername(username) {
-    return Object.values(load().users).find(u => u.username === username) || null;
+
+  async findUserByUsername(username) {
+    const snap = await COL.users.where('username', '==', username).limit(1).get();
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data() };
   },
 
   /* -------- sessions -------- */
-  getSessions() {
-    return Object.values(load().sessions);
-  },
-  getSession(id) {
-    return load().sessions[id] || null;
-  },
-  setSession(session) {
-    load().sessions[session.sessionId] = session;
-    save();
-  },
-  deleteSession(id) {
-    const data = load();
-    delete data.sessions[id];
-    save();
+
+  async getSessions() {
+    const snap = await COL.sessions.get();
+    return snap.docs.map((d) => ({ sessionId: d.id, ...d.data() }));
   },
 
-  /* -------- unlockRequests -------- */
-  getRequests() {
-    return Object.values(load().unlockRequests);
+  async getSession(id) {
+    const doc = await COL.sessions.doc(id).get();
+    return doc.exists ? { sessionId: doc.id, ...doc.data() } : null;
   },
-  getRequest(id) {
-    return load().unlockRequests[id] || null;
+
+  async setSession(session) {
+    const { sessionId, ...data } = session;
+    await COL.sessions.doc(sessionId).set(data, { merge: true });
   },
-  setRequest(request) {
-    load().unlockRequests[request.requestId] = request;
-    save();
+
+  async deleteSession(id) {
+    await COL.sessions.doc(id).delete();
   },
-  deleteRequest(id) {
-    const data = load();
-    delete data.unlockRequests[id];
-    save();
+
+  /* -------- unlock requests -------- */
+
+  async getRequests() {
+    const snap = await COL.unlockRequests.get();
+    return snap.docs.map((d) => ({ requestId: d.id, ...d.data() }));
+  },
+
+  async getRequest(id) {
+    const doc = await COL.unlockRequests.doc(id).get();
+    return doc.exists ? { requestId: doc.id, ...doc.data() } : null;
+  },
+
+  async setRequest(request) {
+    const { requestId, ...data } = request;
+    await COL.unlockRequests.doc(requestId).set(data, { merge: true });
+  },
+
+  async deleteRequest(id) {
+    await COL.unlockRequests.doc(id).delete();
   },
 };
 
