@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>StudyLock — جلسة التركيز</title>
+  <link rel="stylesheet" href="/public/css/index.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-name">StudyLock</span>
+      </div>
+      <div id="statusPill" class="status-pill status-off">
+        <span class="status-dot"></span>
+        <span id="statusText">Focus Mode OFF</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="viewIdle" class="card">
+        <h1 class="title">جاهز للمذاكرة؟</h1>
+        <p class="subtitle">
+          وقت مذاكرة، بدون تشتيت، وحقّق هدفك.
+        </p>
+
+        <label class="field">
+          <span class="field-label">مدة الجلسة</span>
+          <select id="durationSelect" class="select">
+            <option value="25">25 دقيقة</option>
+            <option value="45">45 دقيقة</option>
+            <option value="60">60 دقيقة</option>
+            <option value="120" selected>ساعتان</option>
+            <option value="180">3 ساعات</option>
+          </select>
+        </label>
+
+        <button id="startBtn" class="btn btn-primary" type="button">
+          ابدأ جلسة التركيز
+        </button>
+      </section>
+
+      <section id="viewActive" class="card hidden">
+        <div class="badge">وضع التركيز فعال</div>
+        <div id="timer" class="timer">00:00:00</div>
+        <p class="subtitle">ركز في مذاكرتك.</p>
+
+        <div id="unlockedNotice" class="notice hidden">
+          تم فتح الوضع من المسؤول.
+        </div>
+
+        <button id="requestUnlockBtn" class="btn btn-secondary" type="button">
+          طلب فتح الوضع
+        </button>
+      </section>
+
+      <section id="viewDone" class="card hidden">
+        <h1 class="title">انتهت الجلسة</h1>
+        <p class="subtitle">أحسنت، أكملت جلسة مذاكرة كاملة.</p>
+
+        <div class="stat-row">
+          <span class="stat-label">مدة التركيز</span>
+          <span id="doneDuration" class="stat-value">02:00:00</span>
+        </div>
+
+        <button id="newSessionBtn" class="btn btn-primary" type="button">
+          جلسة جديدة
+        </button>
+      </section>
+
+      <div id="errorBox" class="error hidden"></div>
+    </main>
+
+    <footer class="footer">
+      <a href="/login" class="link-muted">دخول المسؤول</a>
+    </footer>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle" class="modal-title">طلب فتح وضع التركيز</h2>
+
+      <label class="field">
+        <span class="field-label">سبب الطلب</span>
+        <textarea id="reasonInput" class="textarea" rows="4" maxlength="300"
+          placeholder="اكتب سببًا موجزًا لطلب فتح الوضع"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="cancelRequestBtn" class="btn btn-ghost" type="button">إلغاء</button>
+        <button id="sendRequestBtn" class="btn btn-primary" type="button">إرسال الطلب</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/public/js/index.js"></script>
+</body>
+</html>
