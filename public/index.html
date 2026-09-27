@@ -50,20 +50,38 @@
           وقت مذاكرة، بدون تشتيت، وحقّق هدفك.
         </p>
 
-        <label class="field">
+        <div class="field">
           <span class="field-label">مدة الجلسة</span>
-          <select id="durationSelect" class="select">
-            <option value="25">25 دقيقة</option>
-            <option value="45">45 دقيقة</option>
-            <option value="60">60 دقيقة</option>
-            <option value="120" selected>ساعتان</option>
-            <option value="180">3 ساعات</option>
-          </select>
-        </label>
+
+          <div class="duration-options">
+            <button class="duration-btn" data-minutes="60" type="button">
+              ساعة
+            </button>
+            <button class="duration-btn" data-minutes="120" type="button">
+              ساعتان
+            </button>
+            <button class="duration-btn" data-minutes="180" type="button">
+              3 ساعات
+            </button>
+            <button class="duration-btn" data-custom="true" type="button">
+              وقت آخر
+            </button>
+          </div>
+        </div>
+
+        <div id="customDurationBox" class="custom-duration hidden">
+          <label class="field">
+            <span class="field-label">المدة بالدقائق (5 على الأقل)</span>
+            <input id="customMinutesInput" class="input" type="number"
+                   min="5" max="480" step="5" placeholder="مثال: 90" />
+          </label>
+        </div>
 
         <button id="startBtn" class="btn btn-primary" type="button">
           ابدأ جلسة التركيز
         </button>
+
+        <div id="durationError" class="error hidden"></div>
       </section>
 
       <!-- View: active -->
